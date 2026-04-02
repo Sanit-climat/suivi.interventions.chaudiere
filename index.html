@@ -1476,27 +1476,126 @@ function clearPdf(){document.getElementById('pres').style.display='none';documen
 function pdrop(e){e.preventDefault();document.getElementById('pdz').classList.remove('dv');const f=e.dataTransfer.files[0];if(f&&f.type==='application/pdf')ppdf(f);}
 function pfile(e){const f=e.target.files[0];if(f)ppdf(f);e.target.value='';}
 async function ppdf(file){
-  document.getElementById('pload').style.display='block';document.getElementById('pres').style.display='none';
-  try{
-    const ab=await file.arrayBuffer();
-    const loadingTask=pdfjsLib.getDocument({data:new Uint8Array(ab)});
-    const pdf=await loadingTask.promise;
-    let raw='';
-    for(let i=1;i<=Math.min(pdf.numPages,6);i++){
-      const pg=await pdf.getPage(i);
-      const ct=await pg.getTextContent();
-      raw+=ct.items.map(x=>x.str).join(' ')+'\n';
+  const pload = document.getElementById('pload');
+  const pres  = document.getElementById('pres');
+  pload.style.display='block'; pres.style.display='none';
+
+  try {
+    // 1. Extraire le texte via pdf.js
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: new Uint8Array(ab)}).promise;
+    let raw = '';
+    for(let i = 1; i <= Math.min(pdf.numPages, 4); i++){
+      const pg = await pdf.getPage(i);
+      const ct = await pg.getTextContent();
+      raw += ct.items.map(x => x.str).join(' ') + '\n';
     }
-    if(raw.trim().length===0){
-      alert('PDF vide ou illisible — vérifiez que le fichier n\'est pas scanné sans OCR');
-    } else {
+
+    if(raw.trim().length < 30){
+      alert('PDF vide ou illisible (pas de texte extractible).');
+      pload.style.display='none';
+      return;
+    }
+
+    // 2. Appel API Claude pour extraction intelligente
+    document.getElementById('pokl').textContent = '🤖 Analyse IA en cours…';
+    pres.style.display='block';
+    document.getElementById('pfg').innerHTML = '<div style="color:var(--or);font-size:13px;padding:8px">⏳ Claude analyse le bon de travaux…</div>';
+
+    const prompt = `Tu es un assistant qui extrait des données d'un bon de travaux Erilia.
+Voici le texte brut extrait du PDF :
+---
+${raw.slice(0, 4000)}
+---
+
+Extrais exactement ces champs au format JSON (mets "" si non trouvé) :
+{
+  "ref": "numéro du bon de travaux (ex: 2025 61858 ou BT 2026 1398)",
+  "dat": "date de demande au format YYYY-MM-DD (ex: 2025-06-02)",
+  "del": "date d'exécution ou période (ex: 02/06/2025 au 06/06/2025)",
+  "loc": "nom complet du locataire (ex: MME SELMI NABILA)",
+  "adr": "adresse du locataire (rue + ville)",
+  "tel": "téléphone du locataire",
+  "des": "description courte des travaux (max 100 caractères)",
+  "res": "nom de la résidence / programme (ex: REVEI DI PASTRE)",
+  "dem": "émetteur / service demandeur (ex: PANICHI FREDERIC)"
+}
+
+Réponds UNIQUEMENT avec le JSON, sans explication ni balises markdown.`;
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 800,
+        messages: [{role: 'user', content: prompt}]
+      })
+    });
+
+    if(!resp.ok) throw new Error('API Claude error: ' + resp.status);
+    const data = await resp.json();
+    const txt = data.content?.find(b => b.type === 'text')?.text || '';
+
+    let ex = {};
+    try {
+      const clean = txt.replace(/```json|```/g,'').trim();
+      ex = JSON.parse(clean);
+    } catch(e2) {
+      console.warn('JSON parse failed, fallback regex', e2);
       xpdf(raw);
+      pload.style.display='none';
+      return;
     }
-  } catch(e){
-    console.error('PDF error:',e);
-    alert('Erreur lecture PDF : '+e.message+'\n\nVérifiez votre connexion internet (pdf.js doit être chargé).');
+
+    // 3. Afficher les résultats + remplir le formulaire
+    const lbl = {ref:'N° Bon',dat:'Date',del:'Délai',loc:'Locataire',adr:'Adresse',tel:'Téléphone',des:'Description',res:'Résidence',dem:'Demandeur'};
+    const done = Object.entries(ex).filter(([k,v]) => v && v.trim && v.trim() !== '');
+
+    if(done.length){
+      document.getElementById('pfg').innerHTML = done.map(([k,v]) =>
+        `<div class="pdf-fr"><div class="pdf-fk">${lbl[k]||k}</div><div class="pdf-fv">${String(v).slice(0,80)}</div></div>`
+      ).join('');
+      document.getElementById('pokl').textContent = `✅ ${done.length} champs extraits par IA`;
+      pres.style.display = 'block';
+
+      // Remplir le formulaire
+      setAf('f-ref', ex.ref);
+      setAf('f-dat', ex.dat);
+      setAf('f-del', ex.del);
+      setAf('f-loc', ex.loc);
+      setAf('f-adr', ex.adr);
+      setAf('f-tel', ex.tel);
+      setAf('f-des', ex.des);
+      setAf('f-dem', ex.dem);
+
+      // Essayer de trouver la résidence par nom
+      if(ex.res){
+        const resName = ex.res.toLowerCase().trim();
+        const found = D.res.find(r => r.name.toLowerCase().includes(resName) || resName.includes(r.name.toLowerCase()));
+        if(found){
+          // Sélectionner le bailleur
+          const baiEl = document.getElementById('f-bai');
+          if(baiEl) { baiEl.value = found.bai; updateResSelect(); }
+          // Sélectionner la résidence
+          setTimeout(() => {
+            const chdEl = document.getElementById('f-chd');
+            if(chdEl) { chdEl.value = found.id; fillAdrFromChd(); }
+          }, 100);
+        }
+      }
+
+      toast('📄 Bon de travaux analysé par Claude !');
+    } else {
+      document.getElementById('pfg').innerHTML = '<div style="color:#e11;font-size:13px;padding:8px">⚠️ Aucun champ reconnu</div>';
+      document.getElementById('pokl').textContent = '⚠️ Analyse incomplète';
+    }
+
+  } catch(e) {
+    console.error('ppdf error:', e);
+    alert('Erreur : ' + e.message);
   }
-  document.getElementById('pload').style.display='none';
+  pload.style.display='none';
 }
 function setAf(id,v){if(!v)return;const e=document.getElementById(id);if(e&&!e.value){e.value=v;e.classList.add('af');}}
 function xpdf(raw){
