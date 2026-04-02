@@ -425,7 +425,7 @@ firebase.initializeApp({
         <div class="scard-body" id="bailleursList"></div>
       </div>
       <div class="scard">
-        <div class="scard-hdr"><div class="scard-title">Chaudières</div>
+        <div class="scard-hdr"><div class="scard-title">Résidences</div>
           <div style="display:flex;gap:6px">
             
             <button class="btn-sm" onclick="openAddChaudiere()">+ Nouvelle</button>
@@ -445,7 +445,7 @@ firebase.initializeApp({
     <div class="bp-hdr">
       <div><span class="bp-name" id="bpName"></span><span class="bp-count" id="bpCount"></span></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-g" onclick="goSettings()">🔥 Chaudières</button>
+        <button class="btn btn-g" onclick="goSettings()">🏠 Résidences</button>
         <button class="btn-add" onclick="openAdd()">＋ Nouvelle intervention</button>
       </div>
     </div>
@@ -488,7 +488,7 @@ firebase.initializeApp({
   <div class="bp">
     <div class="bp-hdr">
       <div>
-        <div class="page-eyebrow" id="chdEyebrow">Chaudière</div>
+        <div class="page-eyebrow" id="chdEyebrow">Résidence</div>
         <span class="bp-name" id="resName"></span>
         <span class="bp-count" id="resCount"></span>
       </div>
@@ -544,7 +544,7 @@ firebase.initializeApp({
       </div>
       <div class="fr2">
         <div><label class="fl">Bailleur <span>*</span></label><select class="fs" id="f-bai" onchange="updateResSelect()"></select></div>
-        <div><label class="fl">Chaudière</label><select class="fs" id="f-chd" onchange="fillAdrFromChd()"><option value="">— Aucune —</option></select></div>
+        <div><label class="fl">Résidence</label><select class="fs" id="f-chd" onchange="fillAdrFromChd()"><option value="">— Aucune —</option></select></div>
       </div>
       <div class="fr2">
         <div><label class="fl">Catégorie <span>*</span></label>
@@ -1223,7 +1223,7 @@ function renderChaudieresList(){
   const el=document.getElementById('chaudieresList');
   const filter=document.getElementById('chdBailFilter')?.value||'';
   const list=filter?D.res.filter(r=>r.bai===filter):D.res;
-  if(!list.length){el.innerHTML='<div class="empty-sl">Aucune chaudière</div>';return;}
+  if(!list.length){el.innerHTML='<div class="empty-sl">Aucune résidence</div>';return;}
   const byBail={};list.forEach(r=>{if(!byBail[r.bai])byBail[r.bai]=[];byBail[r.bai].push(r);});
   el.innerHTML=Object.entries(byBail).map(([bid,rs])=>{
     const b=getBail(bid);
@@ -1352,7 +1352,7 @@ function renderList(bid){
   <th style="width:20px">!</th>
   <th>N° BT</th>
   <th>Date</th>
-  <th>Chaudière</th>
+  <th>Résidence</th>
   <th>Catégorie</th>
   <th>Description</th>
   <th>Locataire</th>
@@ -1481,7 +1481,6 @@ async function ppdf(file){
   pload.style.display='block'; pres.style.display='none';
 
   try {
-    // 1. Extraire le texte via pdf.js
     const ab = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({data: new Uint8Array(ab)}).promise;
     let raw = '';
@@ -1490,513 +1489,137 @@ async function ppdf(file){
       const ct = await pg.getTextContent();
       raw += ct.items.map(x => x.str).join(' ') + '\n';
     }
-
     if(raw.trim().length < 30){
       alert('PDF vide ou illisible (pas de texte extractible).');
       pload.style.display='none';
       return;
     }
-
-    // 2. Appel API Claude pour extraction intelligente
-    document.getElementById('pokl').textContent = '🤖 Analyse IA en cours…';
-    pres.style.display='block';
-    document.getElementById('pfg').innerHTML = '<div style="color:var(--or);font-size:13px;padding:8px">⏳ Claude analyse le bon de travaux…</div>';
-
-    const prompt = `Tu es un assistant spécialisé dans la lecture de bons de travaux Erilia.
-Voici le texte brut extrait du PDF :
----
-${raw.slice(0, 4000)}
----
-
-RÈGLES STRICTES :
-- Extrais UNIQUEMENT ce qui est écrit dans le texte ci-dessus. N'invente RIEN.
-- "ref" = le numéro après "N°" ou "BON DE TRAVAUX N°", conserve les espaces (ex: "2025 61858" et non "202561858")
-- "dat" = la date d'édition ou de demande au format YYYY-MM-DD. Si non trouvée, mets "".
-- "del" = la période d'exécution exacte telle qu'écrite (ex: "02-06-2025 au 06-06-2025"). Prendre la ligne "PÉRIODE DU ... AU ...".
-- "loc" = nom du locataire (ligne après "ADRESSE", souvent "MME/M. NOM PRENOM")
-- "adr" = adresse du locataire (rue + code postal + ville, PAS l'adresse d'Erilia ni de Sanit Climat)
-- "tel" = téléphone du locataire (ligne "Tél. personnel" ou "Tél. mobile")
-- "des" = DÉSIGNATION complète des travaux (tout le texte des articles DÉSIGNATION, pas juste le code PL1-4)
-- "res" = nom du PROGRAMME/RÉSIDENCE (ligne après "Programme", ex: "REVEI DI PASTRE")
-- "dem" = nom de l'ÉMETTEUR (ligne après "ÉMETTEUR", ex: "PANICHI FREDERIC"). PAS "Erilia Agence Avignon".
-- "rec" = numéro de réclamation (après "Récl. Tech. n°" ou "Réclamation n°", ex: "2025/53769")
-
-Réponds UNIQUEMENT avec ce JSON, sans explication ni balises markdown :
-{
-  "ref": "",
-  "rec": "",
-  "dat": "",
-  "del": "",
-  "loc": "",
-  "adr": "",
-  "tel": "",
-  "des": "",
-  "res": "",
-  "dem": ""
-}`;
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 800,
-        messages: [{role: 'user', content: prompt}]
-      })
-    });
-
-    if(!resp.ok) throw new Error('API Claude error: ' + resp.status);
-    const data = await resp.json();
-    const txt = data.content?.find(b => b.type === 'text')?.text || '';
-
-    let ex = {};
-    try {
-      const clean = txt.replace(/```json|```/g,'').trim();
-      ex = JSON.parse(clean);
-    } catch(e2) {
-      console.warn('JSON parse failed, fallback regex', e2);
-      xpdf(raw);
-      pload.style.display='none';
-      return;
-    }
-
-    // 3. Afficher les résultats + remplir le formulaire
-    const lbl = {ref:'N° Bon',dat:'Date',del:'Délai',loc:'Locataire',adr:'Adresse',tel:'Téléphone',des:'Description',res:'Résidence',dem:'Demandeur'};
-    const done = Object.entries(ex).filter(([k,v]) => v && v.trim && v.trim() !== '');
-
-    if(done.length){
-      document.getElementById('pfg').innerHTML = done.map(([k,v]) =>
-        `<div class="pdf-fr"><div class="pdf-fk">${lbl[k]||k}</div><div class="pdf-fv">${String(v).slice(0,80)}</div></div>`
-      ).join('');
-      document.getElementById('pokl').textContent = `✅ ${done.length} champs extraits par IA`;
-      pres.style.display = 'block';
-
-      // Remplir le formulaire
-      setAf('f-ref', ex.ref);
-      setAf('f-dat', ex.dat);
-      setAf('f-del', ex.del);
-      setAf('f-loc', ex.loc);
-      setAf('f-adr', ex.adr);
-      setAf('f-tel', ex.tel);
-      setAf('f-des', ex.des);
-      setAf('f-dem', ex.dem);
-
-      // Essayer de trouver la résidence par nom (matching souple)
-      if(ex.res){
-        const resName = ex.res.toLowerCase().trim()
-          .replace(/[-_]/g,' ').replace(/\s+/g,' ');
-        // Score de correspondance : préférer la plus longue correspondance commune
-        let best = null, bestScore = 0;
-        for(const r of D.res){
-          const rn = r.name.toLowerCase().trim().replace(/[-_]/g,' ').replace(/\s+/g,' ');
-          // Correspondance exacte
-          if(rn === resName){ best = r; break; }
-          // L'un contient l'autre
-          if(resName.includes(rn) || rn.includes(resName)){
-            const score = Math.min(rn.length, resName.length);
-            if(score > bestScore){ bestScore = score; best = r; }
-          }
-          // Correspondance par mots clés (au moins 2 mots communs)
-          const words = resName.split(' ').filter(w => w.length > 2);
-          const matches = words.filter(w => rn.includes(w)).length;
-          if(matches >= 2 && matches > bestScore){ bestScore = matches; best = r; }
-        }
-        if(best){
-          const baiEl = document.getElementById('f-bai');
-          if(baiEl){ baiEl.value = best.bai; updateResSelect(); }
-          setTimeout(() => {
-            const chdEl = document.getElementById('f-chd');
-            if(chdEl){ chdEl.value = best.id; fillAdrFromChd(); }
-          }, 150);
-          toast('🏠 Résidence trouvée : ' + best.name);
-        } else {
-          toast('⚠️ Résidence "' + ex.res + '" non trouvée dans la base');
-        }
-      }
-
-      toast('📄 Bon de travaux analysé par Claude !');
-    } else {
-      document.getElementById('pfg').innerHTML = '<div style="color:#e11;font-size:13px;padding:8px">⚠️ Aucun champ reconnu</div>';
-      document.getElementById('pokl').textContent = '⚠️ Analyse incomplète';
-    }
-
+    xpdf(raw);
   } catch(e) {
     console.error('ppdf error:', e);
-    alert('Erreur : ' + e.message);
+    alert('Erreur lecture PDF : ' + e.message);
   }
   pload.style.display='none';
 }
+
 function setAf(id,v){if(!v)return;const e=document.getElementById(id);if(e&&!e.value){e.value=v;e.classList.add('af');}}
-function xpdf(raw){
-  const t = raw.replace(/\s+/g,' ').trim();
-  const tl = t.toLowerCase();
+
+function xpdf(rawJoined){
+  // rawJoined = texte avec espaces (pour certains champs)
+  // On garde aussi le texte original avec sauts de ligne pour délai/description
+  const t  = rawJoined.replace(/\s+/g,' ').trim();
   const ex = {};
   let m;
 
-  // ══════════════════════════════════════════════════
-  // DÉTECTION DU FORMAT (bailleur)
-  // ══════════════════════════════════════════════════
-  const isSFHE      = tl.includes('sfhe') || tl.includes('sfhe nimes') || tl.includes('sfhe nîmes');
-  const isLogis1001 = tl.includes('1001 vies') || tl.includes('1001vies') || tl.includes('cger');
-  const isTHM       = tl.includes('toulon habitat') || tl.includes('toulon méditerranée') || tl.includes('bon de travail') || tl.includes('walz') || (tl.includes('thm') && !tl.includes('sfhe'));
-  const is3F        = tl.includes('3f sud') || tl.includes('groupe3f') || tl.includes('bp051');
-  const isVilogia   = tl.includes('vilogia');
-  const isEriliaAvi = tl.includes('erilia') && tl.includes('avignon');
-  const isEriliaMrs = tl.includes('erilia') && (tl.includes('marseille') || tl.includes('aubagne') || tl.includes('ciotat'));
-  const isErilia    = tl.includes('erilia') && !isEriliaAvi && !isEriliaMrs;
+  // ══ N° BON DE TRAVAUX ══
+  m = t.match(/BON\s+DE\s+TRAVAUX\s+N°\s*([\d]{4}\s[\d]+)/i);
+  if(!m) m = t.match(/N°\s+([\d]{4}\s[\d]{3,6})(?=\s)/);
+  if(!m) m = t.match(/N°\s*([\d]{4}\s?[\d]{4,6})/);
+  if(m) ex.ref = m[1].trim();
 
-  // ══════════════════════════════════════════════════
-  // N° BON DE COMMANDE / TRAVAUX
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    // "N° : 265316"
-    m = t.match(/N°\s*:\s*(\d{4,8})/);
-    if(m) ex.ref = m[1];
-    // "Dev26-13227" → N° réclamation
-    m = t.match(/(Dev\d{2}-\d+)/i);
-    if(m) ex.rec = m[1];
+  // ══ N° RÉCLAMATION ══
+  m = t.match(/R[ée]cl?\.?\s*Tech\.?\s*n°\s*([\d]{4}\/[\d]+)/i);
+  if(!m) m = t.match(/R[ée]clamation\s*n°\s*([\d]{4}[\s\/][\d]+)/i);
+  if(m) ex.rec = m[1].trim();
 
-  } else if(isLogis1001){
-    // "n° CGER 309029"
-    m = t.match(/n°\s*(CGER\s*\d+)/i);
-    if(m) ex.ref = m[1].replace(/\s/g,'');
-    else { m = t.match(/CGER\s*(\d+)/i); if(m) ex.ref = 'CGER'+m[1]; }
+  // ══ RÉSIDENCE ══ couper avant "Tranche/TLO/BAT/Escalier"
+  m = t.match(/Programme\s+\d+\s+([A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇ\s']+?)(?:\s+Tranche|\s+TLO|\s+BAT|\s+Escalier)/i);
+  if(!m) m = t.match(/Programme\s+\d+\s+([A-ZÉÀÈÊÎÔÙÛÜÇ][^\d]{3,40})\s+(?:Tranche|TLO)/i);
+  if(m) ex.res = m[1].trim();
 
-  } else if(isTHM){
-    // "BON DE TRAVAIL N° 26033139"
-    m = t.match(/BON\s*DE\s*TRAVAIL\s*N°\s*(\d+)/i);
-    if(m) ex.ref = m[1];
-    // Réclamation date
-    m = t.match(/R[eé]clamation\s+(\d{2}\.\d{2}\.\d{4})/i);
-    if(m) ex.rec = m[1];
+  // ══ LOCATAIRE ══
+  m = t.match(/(M(?:ME|MR|\.|R|LLE)\.?\s+[A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇa-zéàèêîôùûüç\s-]{3,35})(?=\s+\d{1,3}\s+(?:RUE|AVENUE|AVE|BD|BOULEVARD|CHEMIN|IMPASSE|ALLEE|PLACE|ROUTE))/i);
+  if(m) ex.loc = m[1].trim();
 
-  } else if(is3F){
-    // "Bon de commande référence : BP051-7282"
-    m = t.match(/r[eé]f[eé]rence\s*:\s*(BP\d{3}-\d+)/i);
-    if(m) ex.ref = m[1];
-
-  } else if(isVilogia){
-    m = t.match(/[Bb]on\s+de\s+commande\s+n°\s*:?\s*([\w\/\-]+)/i);
-    if(m) ex.ref = m[1].trim();
-    if(!ex.ref){ m = t.match(/N°\s*(\d{4}\s*\d{4,6})/); if(m) ex.ref = m[1].replace(/\s/g,''); }
-
-  } else if(isEriliaAvi || isEriliaMrs || isErilia){
-    m = t.match(/[Bb]on\s+de\s+commande\s+n°\s*:?\s*([\w\/\-]+)/i);
-    if(m) ex.ref = m[1].trim();
-    if(!ex.ref){ m = t.match(/N°\s*(\d{4}\s*\d{4,6})/); if(m) ex.ref = m[1].replace(/\s/g,''); }
-    m = t.match(/R[eé]cl(?:amation)?\.?\s*(?:Tech\.?)?\s*n°?\s*([\d\/\s]+?)(?=\s[A-Z\n]|$)/i);
-    if(m) ex.rec = m[1].trim().replace(/\s/g,'');
-    m = t.match(/[Dd]emande\s+de\s+devis\s+n°([\w\-]+)/i);
-    if(m) ex.rec = m[1].trim();
-  }
-
-  // ══════════════════════════════════════════════════
-  // DATE
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    // "Du : 31/03/2026"
-    m = t.match(/Du\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
-    if(m){ const p=m[1].split('/'); ex.dat=`${p[2]}-${p[1]}-${p[0]}`; }
-    // "Edité le 31/03/2026"
-    if(!ex.dat){ m = t.match(/Edit[eé]\s+le\s+(\d{2}\/\d{2}\/\d{4})/i); if(m){ const p=m[1].split('/'); ex.dat=`${p[2]}-${p[1]}-${p[0]}`; } }
-
-  } else if(isLogis1001){
-    // "du 01-04-2026"
-    m = t.match(/du\s+(\d{2}-\d{2}-\d{4})/i);
-    if(m){ const p=m[1].split('-'); ex.dat=`${p[2]}-${p[1]}-${p[0]}`; }
-
-  } else if(isTHM){
-    // "en date du 31.03.2026"
-    m = t.match(/en\s+date\s+du\s+(\d{2}\.\d{2}\.\d{4})/i);
-    if(m){ const p=m[1].split('.'); ex.dat=`${p[2]}-${p[1]}-${p[0]}`; }
-
-  } else if(is3F){
-    // "Le 01/04/2026"
-    m = t.match(/Le\s+(\d{2}\/\d{2}\/\d{4})/i);
-    if(m){ const p=m[1].split('/'); ex.dat=`${p[2]}-${p[1]}-${p[0]}`; }
-
-  } else {
-    m = t.match(/du\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
-    if(m){ const p=m[1].split('/'); ex.dat=`${p[2]}-${p[1]}-${p[0]}`; }
-    if(!ex.dat){ m = t.match(/[EÉ]dit[eé]\s*le\s*(\d{2}-\d{2}-\d{4})/i); if(m){ const p=m[1].split('-'); ex.dat=`${p[2]}-${p[1]}-${p[0]}`; } }
-  }
-
-  // ══════════════════════════════════════════════════
-  // DÉLAI
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    m = t.match(/TRAVAUX\s*A\s*REALISER\s*ENTRE\s*LE\s*:\s*(\d{2}\/\d{2}\/\d{4})\s*ET\s*LE\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
-    if(m) ex.del = `${m[1]} au ${m[2]}`;
-  } else if(isTHM){
-    m = t.match(/Du\s*:\s*(\d{2}\.\d{2}\.\d{4})\s*Au\s*:\s*(\d{2}\.\d{2}\.\d{4})/i);
-    if(m) ex.del = `${m[1]} au ${m[2]}`;
-  } else if(is3F){
-    m = t.match(/D[eé]but\s*:\s*(\d{2}\/\d{2}\/\d{4})\s*-\s*Fin\s*:\s*(\d{2}\/\d{2}\/\d{4})/i);
-    if(m) ex.del = `${m[1]} au ${m[2]}`;
-  } else if(isLogis1001){
-    m = t.match(/Livraison\s+du\s*:\s*(\d{2}-\d{2}-\d{4})\s*au\s*(\d{2}-\d{2}-\d{4})/i);
-    if(m) ex.del = `${m[1]} au ${m[2]}`;
-  } else {
-    m = t.match(/P[EÉ]RIODE\s*DU\s*(\d{2}-\d{2}-\d{4})\s*AU\s*(\d{2}-\d{2}-\d{4})/i);
-    if(m) ex.del = `${m[1]} au ${m[2]}`;
-  }
-
-  // ══════════════════════════════════════════════════
-  // DEMANDEUR / ÉMETTEUR
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    // "ENVOYE PAR : M Yohan CLAY"
-    m = t.match(/ENVOYE\s*PAR\s*:\s*([^\n]{3,50}?)(?=\s*MAIL|\s*TEL|$)/i);
-    if(m) ex.dem = m[1].trim();
-  } else if(isLogis1001){
-    // "Emetteur de la commande : KHAMASSI Yacine"
-    m = t.match(/Emetteur\s+de\s+la\s+commande\s*:\s*([^\-]{3,50}?)(?=\s*-|\s*Interlocuteur|$)/i);
-    if(m) ex.dem = m[1].trim();
-  } else if(isTHM){
-    // "Emetteur : JDIAZ" + "Visa : WALZ" → "Suivi office : DIAZ JEREMY"
-    m = t.match(/Suivi\s+office\s*:\s*([^\n]{3,40}?)(?=\s*Tel|$)/i);
-    if(m) ex.dem = m[1].trim();
-    else { m = t.match(/Emetteur\s*:\s*([^\n]{2,20})/i); if(m) ex.dem = m[1].trim(); }
-  } else if(is3F){
-    // "Emetteur : DIDIER TRIPODI"
-    m = t.match(/Emetteur\s*:\s*([^\n]{3,60}?)(?=\s*Tel|$)/i);
-    if(m) ex.dem = m[1].trim();
-  } else {
-    m = t.match(/[EÉ]metteur\s*:\s*([^\n,;]{3,50}?)(?=\s*email|\s*mail|\s*t[eé]l|$)/i);
-    if(m) ex.dem = m[1].trim();
-    if(!ex.dem){ m = t.match(/SERVICE[S]?\s+[EÉ]METTEUR\s+([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\s\-]{4,60}?)(?=\s*LOCALISATION|\s*\d|\s*$)/i); if(m) ex.dem = m[1].trim().slice(0,60); }
-  }
-
-  // ══════════════════════════════════════════════════
-  // LOCATAIRE
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    // "Locataire : M MME IDIR Mohamed (140265)"
-    m = t.match(/Locataire\s*:\s*([^\n]{3,60}?)(?=\s*T[eé]l|\s*Port|\s*$)/i);
-    if(m) ex.loc = m[1].trim().replace(/\(\d+\)/, '').trim();
-  } else if(isLogis1001){
-    // "Référence occupant : THIAM ALICINE"
-    m = t.match(/R[eé]f[eé]rence\s+occupant\s*:\s*([^\-\n]{3,50}?)(?=\s*-|T[eé]l|$)/i);
-    if(m) ex.loc = m[1].trim();
-  } else if(isTHM){
-    // Locataire souvent vide sur les parties communes
-    m = t.match(/Locataire\s*:\s*([^\n]{3,50}?)(?=\s*T[eé]l|$)/i);
-    if(m && m[1].trim().length > 2) ex.loc = m[1].trim();
-  } else if(is3F){
-    // "Locataire : Taoufik LAHDIDIOUI"
-    m = t.match(/Locataire\s*:\s*([^\n]{3,60}?)(?=\s*T[eé]l|\s*$)/i);
-    if(m) ex.loc = m[1].trim();
-  } else {
-    m = t.match(/((?:MME|M\.|MONSIEUR|MADAME)\s+[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ][A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\s\-]{2,35}?)\s+\d+\s+(?:RUE|AVENUE|IMPASSE|CHEMIN|ALL[EÉ]E|BOULEVARD|PLACE|R[EÉ]SIDENCE)/i);
-    if(m) ex.loc = m[1].trim();
-    if(!ex.loc){ const ns=[...t.matchAll(/(MME|M\.|MONSIEUR|MADAME)\s+([A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ]+\s+[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\-]+)/g)]; if(ns.length) ex.loc=ns[ns.length-1][0].trim(); }
-  }
-
-  // ══════════════════════════════════════════════════
-  // TÉLÉPHONE locataire
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    // "Port. : 0623521674" (locataire) — prendre le dernier portable du locataire
-    m = t.match(/Locataire.*?Port\.\s*:\s*(0[67]\d{8})/i);
-    if(m) ex.tel = m[1];
-  } else if(isLogis1001){
-    // "Téléphone mobile : 0612948204"
-    m = t.match(/T[eé]l[eé]phone\s+mobile\s*:\s*(0\d{9})/i);
-    if(m) ex.tel = m[1];
-  } else if(is3F){
-    // "Tél port : 0616891741"
-    m = t.match(/T[eé]l\s*port\s*:\s*(0[67]\d{8})/i);
-    if(m) ex.tel = m[1];
-  } else {
-    const mobs=[...t.matchAll(/\b(0[67]\d{2}[\s\.]?\d{2}[\s\.]?\d{2}[\s\.]?\d{2})\b/g)];
-    if(mobs.length) ex.tel=mobs[mobs.length-1][1].replace(/[\s\.]/g,'');
-    if(!ex.tel){ const fix=[...t.matchAll(/\b(0[1-5]\d{2}[\s\.]?\d{2}[\s\.]?\d{2}[\s\.]?\d{2})\b/g)]; if(fix.length) ex.tel=fix[fix.length-1][1].replace(/[\s\.]/g,''); }
-  }
-
-  // ══════════════════════════════════════════════════
-  // ADRESSE D'INTERVENTION
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    // "LE MAS DU DAUPHIN ... 1 Rue Colbert 30129 MANDUEL"
-    m = t.match(/PATRIMOINE\s+CONCERNE\s+[^\n]+\([^)]+\)\s*([^\n]+)\s+(\d{5}\s+[A-Z\s]+?)(?=\s*Logement|\s*Vous)/i);
-    if(m) ex.adr = `${m[1].trim()}, ${m[2].trim()}`;
-    if(!ex.adr){
-      m = t.match(/(\d+\s+Rue\s+[^\n]{3,40}\d{5}\s+[A-Z\s]{2,20})/i);
-      if(m) ex.adr = m[1].replace(/\s+/g,' ').trim();
-    }
-  } else if(isLogis1001){
-    // "16 RUE HOCHE 13003 MARSEILLE 03"
-    m = t.match(/(\d+\s+RUE\s+[^\n]{2,40}\n?\s*\d{5}\s+[A-Z\s]{2,25})/i);
+  // ══ ADRESSE LOCATAIRE ══ (celle du locataire, pas d'Erilia/Sanit Climat)
+  // On la cherche APRÈS le nom du locataire
+  if(ex.loc){
+    const locPos = t.indexOf(ex.loc);
+    const afterLoc = locPos >= 0 ? t.slice(locPos + ex.loc.length, locPos + ex.loc.length + 150) : t;
+    m = afterLoc.match(/(\d{1,4}\s+(?:RUE|AVENUE|AVE|BD|BOULEVARD|CHEMIN|IMPASSE|ALLEE|PLACE|ROUTE)\s+[A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇ\s-]{3,50}\s+\d{5}\s+[A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇ\s-]{2,25})/i);
     if(m) ex.adr = m[1].replace(/\s+/g,' ').trim();
-    // Chaudière aussi utile
-    m = t.match(/R[eé]sidence\s*:\s*\d+-([^\n]{3,50})/i);
-    if(m) ex.resname_hint = m[1].trim();
-  } else if(isTHM){
-    // "LE VERONESE ... 83200 TOULON OUEST"
-    m = t.match(/Lieu\s+d.ex[eé]cution\s*:\s*([^\n]{3,60})\s*\n?\s*[^\n]*\n?\s*(\d{5}\s+[A-Z\s]{2,25})/i);
-    if(m) ex.adr = `${m[1].trim()}, ${m[2].trim()}`;
-  } else if(is3F){
-    // "894 route NATIONALE 8 13400 AUBAGNE"
-    m = t.match(/(\d+\s+(?:route|rue|avenue|boulevard|chemin|impasse|allée)\s+[^\n]{2,40}\s*\n?\s*\d{5}\s+[A-Z\s]{2,25})/i);
-    if(m) ex.adr = m[1].replace(/\s+/g,' ').trim();
-  } else {
-    m = t.match(/(?:MME|M\.|MONSIEUR|MADAME)\s+[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\s\-]+\s+(\d+\s+(?:RUE|AVENUE|IMPASSE|CHEMIN|ALL[EÉ]E|BOULEVARD|PLACE|R[EÉ]SIDENCE)[^T]{5,60}?\d{5}\s+[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\s]{2,25}?)(?:T[eé]l|$)/i);
-    if(m) ex.adr = m[1].replace(/\s+/g,' ').trim();
-    if(!ex.adr){ m = t.match(/(\d+\s+(?:IMPASSE|RUE|AVENUE|BOULEVARD|ALL[EÉ]E|CHEMIN|PLACE|R[EÉ]SIDENCE)\s+[^0-9]{4,50}\d{5}\s+[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\s]{2,20})/i); if(m) ex.adr=m[1].replace(/\s+/g,' ').trim(); }
-    if(!ex.adr && isTHM){ m = t.match(/BATIMENT\s+\w[\w\s]*?(\d+\s+(?:RUE|AVENUE|IMPASSE|CHEMIN|ALL[EÉ]E|BOULEVARD|PLACE|SAINT)[^\d]{3,50}\d{5}\s+[A-ZÀÂÄÉÈÊËÎÏÔÙÛÜÇ\s]{2,20})/i); if(m) ex.adr=m[1].replace(/\s+/g,' ').trim(); }
   }
 
-  // ══════════════════════════════════════════════════
-  // DESCRIPTION DES TRAVAUX
-  // ══════════════════════════════════════════════════
-  if(isSFHE){
-    // Titre du bon : "HP358 Dev26-13227 refixer rad + raccord"
-    m = t.match(/BON\s+DE\s+COMMANDE\s+([^\n]{5,100}?)\s*N°/i);
-    if(m) ex.des = m[1].trim();
-  } else if(isLogis1001){
-    // "Objet de la commande : PPR VERIF LAVABO THIAM ADAMAS"
-    m = t.match(/Objet\s+de\s+la\s+commande\s*:\s*([^\n]{5,150})/i);
-    if(m) ex.des = m[1].trim();
-    if(!ex.des){
-      // Dans le tableau désignation
-      m = t.match(/FRAIS\s+DEPLACEMENT[^\n]*\n\s*([^\n]{5,100})/i);
-      if(m) ex.des = m[1].trim();
-    }
-  } else if(isTHM){
-    // Ligne en majuscules après le tableau
-    m = t.match(/FUITE\s+SUR[^\n]{5,200}/i) || t.match(/([A-Z]{3}[A-Z\s]{10,120}(?:FUITE|REMPLACEMENT|RÉPARATION|REPARATION|PANNE|BOUCHON|DÉPANNAGE|DEPANNAGE|ENTRETIEN)[A-Z\s]{5,100})/);
-    if(m) ex.des = m[0].trim();
-    // Sinon : nature des travaux
-    if(!ex.des){ m = t.match(/nature\s+des\s+travaux\s+[^\n]*\n\s*([^\n]{5,100})/i); if(m) ex.des = m[1].trim(); }
-  } else if(is3F){
-    // "Description ... Remplacement vitrage"
-    m = t.match(/Description\s+([^\n]{5,150})/i);
-    if(m) ex.des = m[1].trim();
-  } else {
-    // Erilia : "POUR LE MODULE PL2-3 Libellé... FOR 1,00 480,00 528,00 COMMENTAIRE TOTAL"
-    // Regex validée sur texte réel pdf.js
-    m = t.match(/POUR\s+LE\s+MODULE\s+(PL[\w\-]+)\s+(.+?)(?=\s+(?:FOR|ML|U\s)\s+[\d,]+)/i);
-    if(m){
-      ex.des = m[1] + ' \u2014 ' + m[2].replace(/\s+/g,' ').trim();
-      // Commentaire après le bloc de prix (FOR qté PU TTC)
-      const mc = t.match(/FOR\s+[\d,]+\s+[\d,]+\s+[\d,]+\s+(.+?)(?=\s*TOTAL)/i);
-      if(mc && mc[1].trim().length > 3) ex.des += '\n' + mc[1].replace(/\s+/g,' ').trim();
-    }
-    // Fallback 2 : code BPU seul suivi de description
-    if(!ex.des){
-      m = t.match(/(PL[\d]+-[\dA-Z]+)\s+(.+?)(?=\s+(?:FOR|ML|U\b|M2)\s+[\d])/i);
-      if(m) ex.des = m[1] + ' \u2014 ' + m[2].replace(/\s+/g,' ').trim();
-    }
-    // Fallback 3 : tableau DÉSIGNATION standard
-    if(!ex.des){
-      m = t.match(/D[EÉ]SIGNATION\s+UNIT[EÉ][\s\S]{0,60}?((?:Fourniture|Remplacement|R[eé]paration|Pose|D[eé]pose|V[eé]rification|D[eé]bouchage|Nettoyage|Installation|Changement)[^\d\u20ac]{15,250}?)(?:\d|FOR|ENS|TOTAL|H\.T\.)/i);
-      if(m) ex.des = m[1].replace(/\s+/g,' ').trim();
-    }
-    if(!ex.des){
-      m = t.match(/((?:Fourniture|Remplacement|R[eé]paration|Pose|D[eé]pose|Changement|Trav\.|Installation)\s+[^\d\u20ac]{10,200})/i);
-      if(m) ex.des = m[1].replace(/\s+/g,' ').trim();
-    }
+  // ══ TÉLÉPHONE LOCATAIRE ══
+  m = t.match(/T[eé]l\.?\s*(?:personnel|mobile|fixe)?\s*(0[67](?:\s?\d{2}){4})/i);
+  if(m) ex.tel = m[1].replace(/\s/g,'').replace(/(\d{2})(?=\d)/g,'$1 ').trim();
+
+  // ══ ÉMETTEUR ══
+  m = t.match(/[ÉE]METTEUR\s+([A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇ]+\s+[A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇ]+)\s+T[eé]l/i);
+  if(!m) m = t.match(/SERVICES?\s+DU\s+\w+\s+[ÉE]METTEUR\s+([A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇ]+\s+[A-ZÉÀÈÊÎÔÙÛÜÇ][A-ZÉÀÈÊÎÔÙÛÜÇ]+)/i);
+  if(m) ex.dem = m[1].trim();
+
+  // ══ DÉLAI ══ pdfjs joint parfois sur une ligne : "5 JOURS 02-06-2025 AU 06-06-2025"
+  m = t.match(/(\d{2}[-/]\d{2}[-/]\d{4})\s+AU\s+(\d{2}[-/]\d{2}[-/]\d{4})/i);
+  if(m) ex.del = m[1] + ' au ' + m[2];
+
+  // ══ DATE DEMANDE ══ (date d'exécution mentionnée en page 2)
+  m = t.match(/Date\s+d['']ex[eé]cution\s+des\s+travaux\s*:\s*(\d{2}[-/]\d{2}[-/]\d{4})/i);
+  if(!m) m = t.match(/[EÉ]dit[eé]\s+le\s+(\d{2}[-/]\d{2}[-/]\d{4})/i);
+  if(m){
+    const parts = m[1].split(/[-/]/);
+    if(parts[2]?.length===4) ex.dat = parts[2]+'-'+parts[1]+'-'+parts[0];
   }
 
-  // ══════════════════════════════════════════════════
-  // MONTANT HT
-  // ══════════════════════════════════════════════════
-  m = t.match(/TOTAL\s*HT\s*([\d\s]+[,\.]\d{2})\s*€?/i);
-  if(m) ex.mnt = m[1].replace(/\s/g,'').replace('.',',');
-  if(!ex.mnt){ m = t.match(/Montant\s+(?:total\s+)?HT\s*[\(\euros\)]*\s*([\d\s]+[,\.]\d{2})/i); if(m) ex.mnt=m[1].replace(/\s/g,'').replace('.',','); }
-  if(!ex.mnt){ m = t.match(/total\s*h\.?t\.?\s*([\d\s]+[,\.]\d{2})/i); if(m) ex.mnt=m[1].replace(/\s/g,'').replace('.',','); }
-
-  // ══════════════════════════════════════════════════
-  // AUTO-DETECT BAILLEUR → sélectionner dans la liste
-  // ══════════════════════════════════════════════════
-  let detectedBail = null;
-  if(isSFHE)          { detectedBail = D.bails.find(b=>b.name.toLowerCase().includes('sfhe')); ex._bai = detectedBail?.name; }
-  else if(isLogis1001){ detectedBail = D.bails.find(b=>b.name.toLowerCase().includes('logis') || b.name.toLowerCase().includes('1001')); ex._bai = detectedBail?.name; }
-  else if(isTHM)      { detectedBail = D.bails.find(b=>b.name.toLowerCase().includes('thm') || b.name.toLowerCase().includes('toulon')); ex._bai = detectedBail?.name; }
-  else if(is3F)       { detectedBail = D.bails.find(b=>b.name.toLowerCase().includes('3f')); ex._bai = detectedBail?.name; }
-  else if(isVilogia)  { detectedBail = D.bails.find(b=>b.name.toLowerCase().includes('vilogia')); ex._bai = detectedBail?.name; }
-  else if(isEriliaAvi){ detectedBail = D.bails.find(b=>b.name.toLowerCase().includes('erilia')&&b.name.toLowerCase().includes('avignon')); ex._bai = detectedBail?.name; }
-  else if(isEriliaMrs || isErilia){
-    if(tl.includes('sud')&&tl.includes('calanque')) detectedBail=D.bails.find(b=>b.id==='erilia-mrs-sud');
-    else if(tl.includes('est')&&tl.includes('centre')) detectedBail=D.bails.find(b=>b.id==='erilia-mrs-est');
-    else detectedBail=D.bails.find(b=>b.id==='erilia-mrs-sud');
-    ex._bai=detectedBail?.name;
+  // ══ DESCRIPTION TRAVAUX ══
+  // Extraire le bloc entre DÉSIGNATION...UNITÉ et T.V.A.
+  // On travaille sur rawJoined mais on garde les séparateurs naturels
+  const desBlock = t.match(/D[EÉ]SIGNATION\s+UNIT[EÉ]\s+(?:QUANTIT[EÉ]\s+)?(.+?)T\.?V\.?A\./i);
+  if(desBlock){
+    let des = desBlock[1]
+      .replace(/\b(?:PL|BT|MC|EL|CH|VM)\d+[-\.]\d+\b/g,'')
+      .replace(/\bU\b/g,'')
+      .replace(/\b\d+,\d{2}\b/g,'')
+      .replace(/\s+/g,' ')
+      .trim();
+    if(des.length > 10) ex.des = des.slice(0,250);
+  }
+  if(!ex.des){
+    m = t.match(/((?:Remplacement|Recherche|Fourniture|Pose|R[ée]paration|D[eé]placement|Entretien|Installation)[^.]{10,200})/i);
+    if(m) ex.des = m[0].trim().slice(0,200);
   }
 
-  if(detectedBail){
-    document.getElementById('f-bai').value = detectedBail.id;
-    updateResSelect();
-    // Auto-match chaudière
-    const ress = getResForBail(detectedBail.id);
-    const matched = ress.find(r=>tl.includes(r.name.toLowerCase()));
-    if(matched){ document.getElementById('f-chd').value = matched.id; ex._res = matched.name; }
-    // Hint chaudière depuis 1001 Vies
-    if(ex.resname_hint && !matched){
-      const h = ex.resname_hint.toLowerCase();
-      const hinted = ress.find(r=>h.includes(r.name.toLowerCase().slice(0,6)) || r.name.toLowerCase().includes(h.slice(0,6)));
-      if(hinted){ document.getElementById('f-chd').value = hinted.id; ex._res = hinted.name; }
-    }
-  }
+  // ══ AFFICHAGE + REMPLISSAGE ══
+  const lbl={ref:'N° Bon',rec:'Réclamation',dat:'Date',del:'Délai',loc:'Locataire',adr:'Adresse',tel:'Téléphone',des:'Description',res:'Résidence',dem:'Demandeur'};
+  const done=Object.entries(ex).filter(([k,v])=>v&&String(v).trim());
 
-  // ══════════════════════════════════════════════════
-  // AUTO-DETECT CATÉGORIE
-  // ══════════════════════════════════════════════════
-  if(!document.getElementById('f-cat').value){
-    if(tl.match(/plomb|ballo|ecs|cumulus|robinet|canalisation|wc|toil|tuyau|chauffe|sanitaire|rad|raccord|fuite|lavabo/))
-      document.getElementById('f-cat').value='Plomberie';
-    else if(tl.match(/maçon|b[eé]ton|fissure|[eé]tanch|toiture|infiltr/))
-      document.getElementById('f-cat').value='Maçonnerie / Étanchéité';
-    else if(tl.match(/peinture|repeindre|vernis/))
-      document.getElementById('f-cat').value='Peinture';
-    else if(tl.match(/porte|fen[eê]tre|serrure|volet|menuiserie|cylindre|vitrage|vitre|m[eé]tallerie/))
-      document.getElementById('f-cat').value='Menuiserie';
-    else if(tl.match(/électr|tableau|prises|disjoncteur/))
-      document.getElementById('f-cat').value='TCE';
-  }
-
-  // ══════════════════════════════════════════════════
-  // ENRICHISSEMENT BPU
-  // ══════════════════════════════════════════════════
-  if(detectedBail){
-    const bpuFound = lookupBPU(detectedBail.id, t);
-    if(bpuFound && bpuFound.length){
-      const bpuLines = bpuFound.map(f=>f.code+' — '+f.titre).join('\n');
-      if(!ex.des) ex.des = bpuLines;
-      else if(ex.des.length < 40) ex.des = ex.des + '\n\n' + bpuLines;
-      else ex.des = ex.des + '\n\n📋 Codes BPU :\n' + bpuLines;
-      ex._bpu = bpuFound.map(f=>f.code).join(', ');
-    }
-  }
-
-  // ══════════════════════════════════════════════════
-  // REMPLIR LES CHAMPS
-  // ══════════════════════════════════════════════════
-  if(ex.ref) setAf('f-ref', ex.ref);
-  if(ex.rec) setAf('f-rec', ex.rec);
-  if(ex.dat){ const e=document.getElementById('f-dat'); if(e) e.value=ex.dat; }
-  if(ex.del) setAf('f-del', ex.del);
-  if(ex.loc) setAf('f-loc', ex.loc);
-  if(ex.adr) setAf('f-adr', ex.adr);
-  if(ex.tel) setAf('f-tel', ex.tel);
-  if(ex.dem) setAf('f-dem', ex.dem);
-  if(ex.des) setAf('f-des', ex.des);
-  if(ex.mnt) setAf('f-mnt', ex.mnt);
-
-  // ══════════════════════════════════════════════════
-  // RÉSUMÉ VISUEL
-  // ══════════════════════════════════════════════════
-  const lbl={ref:'N° Bon',rec:'Réclamation',dat:'Date',del:'Délai',loc:'Locataire',adr:'Adresse',tel:'Téléphone',dem:'Demandeur',des:'Description',mnt:'Montant HT',_bai:'Bailleur',_res:'Chaudière',_bpu:'Codes BPU'};
-  const done = Object.entries(ex).filter(([k,v])=>v&&!k.startsWith('resname'));
   if(done.length){
-    document.getElementById('pfg').innerHTML = done.map(([k,v])=>`<div class="pdf-fr"><div class="pdf-fk">${lbl[k]||k}</div><div class="pdf-fv">${String(v).slice(0,70)}</div></div>`).join('');
-    document.getElementById('pokl').textContent = `✅ ${done.length} champ${done.length>1?'s':''} extrait${done.length>1?'s':''}`;
-    document.getElementById('pres').style.display = 'block';
-    toast(`📄 ${done.length} champ${done.length>1?'s':''} extrait${done.length>1?'s':''}`);
+    document.getElementById('pfg').innerHTML=done.map(([k,v])=>
+      `<div class="pdf-fr"><div class="pdf-fk">${lbl[k]||k}</div><div class="pdf-fv">${String(v).slice(0,80)}</div></div>`
+    ).join('');
+    document.getElementById('pokl').textContent=`✅ ${done.length} champ${done.length>1?'s':''} extraits`;
+    document.getElementById('pres').style.display='block';
+
+    setAf('f-ref',ex.ref); setAf('f-rec',ex.rec); setAf('f-dat',ex.dat);
+    setAf('f-del',ex.del); setAf('f-loc',ex.loc); setAf('f-adr',ex.adr);
+    setAf('f-tel',ex.tel); setAf('f-des',ex.des); setAf('f-dem',ex.dem);
+
+    // Matcher la résidence
+    if(ex.res){
+      const rn0=ex.res.toLowerCase().trim().replace(/[-_]/g,' ').replace(/\s+/g,' ');
+      let best=null,bestScore=0;
+      for(const r of D.res){
+        const rn=r.name.toLowerCase().replace(/[-_]/g,' ').replace(/\s+/g,' ');
+        if(rn===rn0){best=r;break;}
+        if(rn0.includes(rn)||rn.includes(rn0)){const s=Math.min(rn.length,rn0.length);if(s>bestScore){bestScore=s;best=r;}}
+        const words=rn0.split(' ').filter(w=>w.length>2);
+        const matches=words.filter(w=>rn.includes(w)).length;
+        if(matches>=2&&matches>bestScore){bestScore=matches;best=r;}
+      }
+      if(best){
+        const baiEl=document.getElementById('f-bai');
+        if(baiEl){baiEl.value=best.bai;updateResSelect();}
+        setTimeout(()=>{const chdEl=document.getElementById('f-chd');if(chdEl){chdEl.value=best.id;fillAdrFromChd();}},150);
+        toast('🏠 Résidence : '+best.name);
+      } else { toast('⚠️ Résidence "'+ex.res+'" non trouvée'); }
+    }
+    toast('📄 '+done.length+' champ'+(done.length>1?'s':'')+' extraits du BT');
   } else {
-    toast('⚠️ Aucune donnée reconnue');
+    document.getElementById('pfg').innerHTML='<div style="color:#e11;padding:8px">⚠️ Aucune donnée reconnue</div>';
+    document.getElementById('pokl').textContent='⚠️ Aucun champ reconnu';
+    document.getElementById('pres').style.display='block';
   }
 }
-
 
 // ── PIÈCES JOINTES ───────────────────────────────────────────
 let pendingAttachments = []; // {file, name, size, preview}
