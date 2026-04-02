@@ -1502,26 +1502,38 @@ async function ppdf(file){
     pres.style.display='block';
     document.getElementById('pfg').innerHTML = '<div style="color:var(--or);font-size:13px;padding:8px">⏳ Claude analyse le bon de travaux…</div>';
 
-    const prompt = `Tu es un assistant qui extrait des données d'un bon de travaux Erilia.
+    const prompt = `Tu es un assistant spécialisé dans la lecture de bons de travaux Erilia.
 Voici le texte brut extrait du PDF :
 ---
 ${raw.slice(0, 4000)}
 ---
 
-Extrais exactement ces champs au format JSON (mets "" si non trouvé) :
-{
-  "ref": "numéro du bon de travaux (ex: 2025 61858 ou BT 2026 1398)",
-  "dat": "date de demande au format YYYY-MM-DD (ex: 2025-06-02)",
-  "del": "date d'exécution ou période (ex: 02/06/2025 au 06/06/2025)",
-  "loc": "nom complet du locataire (ex: MME SELMI NABILA)",
-  "adr": "adresse du locataire (rue + ville)",
-  "tel": "téléphone du locataire",
-  "des": "description courte des travaux (max 100 caractères)",
-  "res": "nom de la résidence / programme (ex: REVEI DI PASTRE)",
-  "dem": "émetteur / service demandeur (ex: PANICHI FREDERIC)"
-}
+RÈGLES STRICTES :
+- Extrais UNIQUEMENT ce qui est écrit dans le texte ci-dessus. N'invente RIEN.
+- "ref" = le numéro après "N°" ou "BON DE TRAVAUX N°", conserve les espaces (ex: "2025 61858" et non "202561858")
+- "dat" = la date d'édition ou de demande au format YYYY-MM-DD. Si non trouvée, mets "".
+- "del" = la période d'exécution exacte telle qu'écrite (ex: "02-06-2025 au 06-06-2025"). Prendre la ligne "PÉRIODE DU ... AU ...".
+- "loc" = nom du locataire (ligne après "ADRESSE", souvent "MME/M. NOM PRENOM")
+- "adr" = adresse du locataire (rue + code postal + ville, PAS l'adresse d'Erilia ni de Sanit Climat)
+- "tel" = téléphone du locataire (ligne "Tél. personnel" ou "Tél. mobile")
+- "des" = DÉSIGNATION complète des travaux (tout le texte des articles DÉSIGNATION, pas juste le code PL1-4)
+- "res" = nom du PROGRAMME/RÉSIDENCE (ligne après "Programme", ex: "REVEI DI PASTRE")
+- "dem" = nom de l'ÉMETTEUR (ligne après "ÉMETTEUR", ex: "PANICHI FREDERIC"). PAS "Erilia Agence Avignon".
+- "rec" = numéro de réclamation (après "Récl. Tech. n°" ou "Réclamation n°", ex: "2025/53769")
 
-Réponds UNIQUEMENT avec le JSON, sans explication ni balises markdown.`;
+Réponds UNIQUEMENT avec ce JSON, sans explication ni balises markdown :
+{
+  "ref": "",
+  "rec": "",
+  "dat": "",
+  "del": "",
+  "loc": "",
+  "adr": "",
+  "tel": "",
+  "des": "",
+  "res": "",
+  "dem": ""
+}`;
 
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -1569,19 +1581,36 @@ Réponds UNIQUEMENT avec le JSON, sans explication ni balises markdown.`;
       setAf('f-des', ex.des);
       setAf('f-dem', ex.dem);
 
-      // Essayer de trouver la résidence par nom
+      // Essayer de trouver la résidence par nom (matching souple)
       if(ex.res){
-        const resName = ex.res.toLowerCase().trim();
-        const found = D.res.find(r => r.name.toLowerCase().includes(resName) || resName.includes(r.name.toLowerCase()));
-        if(found){
-          // Sélectionner le bailleur
+        const resName = ex.res.toLowerCase().trim()
+          .replace(/[-_]/g,' ').replace(/\s+/g,' ');
+        // Score de correspondance : préférer la plus longue correspondance commune
+        let best = null, bestScore = 0;
+        for(const r of D.res){
+          const rn = r.name.toLowerCase().trim().replace(/[-_]/g,' ').replace(/\s+/g,' ');
+          // Correspondance exacte
+          if(rn === resName){ best = r; break; }
+          // L'un contient l'autre
+          if(resName.includes(rn) || rn.includes(resName)){
+            const score = Math.min(rn.length, resName.length);
+            if(score > bestScore){ bestScore = score; best = r; }
+          }
+          // Correspondance par mots clés (au moins 2 mots communs)
+          const words = resName.split(' ').filter(w => w.length > 2);
+          const matches = words.filter(w => rn.includes(w)).length;
+          if(matches >= 2 && matches > bestScore){ bestScore = matches; best = r; }
+        }
+        if(best){
           const baiEl = document.getElementById('f-bai');
-          if(baiEl) { baiEl.value = found.bai; updateResSelect(); }
-          // Sélectionner la résidence
+          if(baiEl){ baiEl.value = best.bai; updateResSelect(); }
           setTimeout(() => {
             const chdEl = document.getElementById('f-chd');
-            if(chdEl) { chdEl.value = found.id; fillAdrFromChd(); }
-          }, 100);
+            if(chdEl){ chdEl.value = best.id; fillAdrFromChd(); }
+          }, 150);
+          toast('🏠 Résidence trouvée : ' + best.name);
+        } else {
+          toast('⚠️ Résidence "' + ex.res + '" non trouvée dans la base');
         }
       }
 
