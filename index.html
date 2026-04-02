@@ -677,24 +677,22 @@ async function initDefaults(){
   const bailsVal = snap.val() || {};
   const resCount = snapRes.val() ? Object.keys(snapRes.val()).length : 0;
 
-  // Pousser les bailleurs par défaut s'ils manquent (ou si 3f-sud absent)
-  if(bailsEmpty || !bailsVal['3f-sud'] || !bailsVal['erilia-mrs-sud']){
+  // Pousser les bailleurs par défaut s'ils manquent
+  if(bailsEmpty || !bailsVal['erilia-aubagne']){
     const ub = {};
     DEFAULT_BAILLEURS.forEach(b => { const {id,...data} = b; ub[id] = data; });
     await refBails.update(ub);
     console.log('Bailleurs mis à jour dans Firebase');
   }
 
-  if(resCount < 50){
-    // Chaudières insuffisantes (ancienne version) : forcer la mise à jour complète
-    console.log('Mise à jour chaudières:', resCount, '→', DEFAULT_CHAUDIERES.length);
-    // Effacer les anciennes
+  // Pousser les résidences par défaut si la base est vide ou insuffisante
+  if(resCount < Math.floor(DEFAULT_RESIDENCES.length * 0.5)){
+    console.log('Mise à jour résidences:', resCount, '→', DEFAULT_RESIDENCES.length);
     await refRes.remove();
-    // Pousser toutes les nouvelles
     const ur = {};
-    DEFAULT_CHAUDIERES.forEach(r => { const {id,...data} = r; ur[id] = data; });
+    DEFAULT_RESIDENCES.forEach(r => { const {id,...data} = r; ur[id] = data; });
     await refRes.update(ur);
-    toast('✅ ' + DEFAULT_CHAUDIERES.length + ' chaudières chargées !');
+    toast('✅ ' + DEFAULT_RESIDENCES.length + ' résidences chargées !');
   }
 }
 
@@ -961,14 +959,14 @@ function clearHomeFilter(){
 }
 
 async function resetChaudieres(){
-  if(!confirm('Réinitialiser toutes les chaudières avec la liste complète (' + DEFAULT_CHAUDIERES.length + ' chaudières) ?')) return;
+  if(!confirm('Réinitialiser toutes les résidences avec la liste complète (' + DEFAULT_RESIDENCES.length + ' résidences) ?')) return;
   setStatus('⏳ Chargement...','#d97706');
   try {
     await refRes.remove();
     const ur = {};
-    DEFAULT_CHAUDIERES.forEach(r => { const {id,...data} = r; ur[id] = data; });
+    DEFAULT_RESIDENCES.forEach(r => { const {id,...data} = r; ur[id] = data; });
     await refRes.update(ur);
-    toast('✅ ' + DEFAULT_CHAUDIERES.length + ' chaudières chargées !');
+    toast('✅ ' + DEFAULT_RESIDENCES.length + ' résidences chargées !');
     setStatus('🟢 Connecté','#16a34a');
   } catch(e) {
     alert('Erreur : ' + e.message);
