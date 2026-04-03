@@ -66,6 +66,10 @@ body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;background:var(--bg);c
 .hdr-sep{width:1px;height:26px;background:var(--brd)}
 .hdr-sub{font-size:12px;color:var(--tx3);font-weight:600}
 .hdr-sp{flex:1}
+.nav-bar{display:flex;align-items:center;gap:4px;background:#fff;border-bottom:2px solid var(--brd);padding:0 28px;position:sticky;top:56px;z-index:90;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.nav-tab{padding:14px 20px;border:none;background:none;color:var(--tx3);font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;font-family:'Plus Jakarta Sans',sans-serif;white-space:nowrap;border-bottom:3px solid transparent;margin-bottom:-2px}
+.nav-tab:hover{color:var(--or)}
+.nav-tab.active{color:var(--or)!important;border-bottom-color:var(--or)}
 .hdr-btn{display:flex;align-items:center;gap:6px;padding:6px 14px;background:var(--bg3);border:1px solid var(--brd2);border-radius:var(--r);font-size:12px;font-weight:600;color:var(--tx2);cursor:pointer;transition:all .15s;font-family:'Plus Jakarta Sans',sans-serif}
 .hdr-btn:hover{border-color:var(--or);color:var(--or);background:var(--orbg)}
 .hdr-stats{display:flex;gap:4px}
@@ -340,12 +344,124 @@ firebase.initializeApp({
   <div class="hdr-sep"></div>
   <div class="hdr-sub">Gestion des interventions</div>
   <div class="hdr-sp"></div>
-  <div class="hdr-btn" id="hdrBack" onclick="goHome()" style="display:none">← Accueil</div>
+  <div class="hdr-btn" id="hdrBack" onclick="goHome()" style="display:none">← Retour</div>
+
   <div class="hdr-btn" onclick="goSynthese()">📊 Synthèse</div>
   <div class="hdr-btn" onclick="goSettings()">⚙ Paramètres</div>
     <button class="btn-sm" onclick="importMissionsFromExcel()" id="btnImport" style="background:var(--gnbg);color:var(--gn);border-color:var(--gnbrd)">⬆️ Importer Excel</button>
   <div id="fbStatus" style="font-size:11px;font-weight:600;color:#d97706;padding:0 8px;white-space:nowrap">⏳ Connexion...</div>
   <div class="hdr-stats" id="hs"></div>
+</div>
+
+<!-- BARRE DE NAVIGATION -->
+<div class="nav-bar">
+  <button class="nav-tab active" id="navAccueil" onclick="goHome()">🏠 Accueil</button>
+  <button class="nav-tab" id="navResidences" onclick="goResidences()">🏘 Résidences</button>
+  <button class="nav-tab" id="navInterventions" onclick="goInterventions()">📋 Interventions</button>
+</div>
+
+<!-- PAGE TOUTES INTERVENTIONS -->
+<div class="page" id="pageInterventions">
+  <div class="home">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:0">
+      <div>
+        <div class="page-eyebrow">Toutes les interventions</div>
+        <div class="page-title" style="margin-bottom:0">Suivi des <span id="allMisTitle">interventions</span></div>
+      </div>
+      <button class="btn-add" onclick="openAddHome()" style="margin-top:8px">＋ Nouvelle intervention</button>
+    </div>
+    <div style="height:16px"></div>
+    <!-- Stats rapides -->
+    <div class="gstats" id="allMisStats"></div>
+    <div style="height:16px"></div>
+    <!-- Bandeau filtres avancés -->
+    <div style="background:var(--bg2);border-radius:var(--r);padding:14px 16px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <!-- Ville -->
+      <div style="position:relative">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:13px;pointer-events:none">🏙</span>
+        <input class="srch" id="allFVille" placeholder="Ville..." oninput="renderAllMis()" style="width:130px;padding-left:30px;font-size:12px">
+      </div>
+      <!-- Résidence -->
+      <div style="position:relative">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:13px;pointer-events:none">🏠</span>
+        <input class="srch" id="allFRes" placeholder="Résidence..." oninput="renderAllMis()" style="width:160px;padding-left:30px;font-size:12px">
+      </div>
+      <!-- Catégorie -->
+      <select id="allFCat" onchange="renderAllMis()" style="padding:6px 12px;border:1px solid var(--brd);border-radius:20px;font-size:12px;background:#fff;color:var(--tx);outline:none;cursor:pointer">
+        <option value="">Toutes catégories</option>
+        <option>Diagnostic</option>
+        <option>Entretien</option>
+        <option>Remplacement</option>
+        <option>Travaux</option>
+        <option>Urgence</option>
+      </select>
+      <!-- Statut -->
+      <select id="allFSta" onchange="renderAllMis()" style="padding:6px 12px;border:1px solid var(--brd);border-radius:20px;font-size:12px;background:#fff;color:var(--tx);outline:none;cursor:pointer">
+        <option value="">Tous statuts</option>
+        <option value="at">En attente</option>
+        <option value="te">Terminé</option>
+        <option value="fa">Facturé</option>
+        <option value="pr">Partiel</option>
+        <option value="ic">En cours</option>
+      </select>
+      <!-- Urgents -->
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#dc2626;cursor:pointer;padding:5px 12px;border:1px solid #fecaca;border-radius:20px;background:#fef2f2;white-space:nowrap">
+        <input type="checkbox" id="allFUrg" onchange="renderAllMis()" style="accent-color:#dc2626"> 🔴 Urgents
+      </label>
+      <!-- Recherche BT/locataire -->
+      <div style="position:relative;flex:1;min-width:160px">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--tx3);font-size:13px;pointer-events:none">🔍</span>
+        <input class="srch" id="allFSearch" placeholder="N° BT, locataire, adresse..." oninput="renderAllMis()" style="width:100%;padding-left:30px;font-size:12px">
+      </div>
+      <!-- Tri -->
+      <select id="allFSort" onchange="renderAllMis()" style="padding:6px 12px;border:1px solid var(--brd);border-radius:20px;font-size:12px;background:#fff;color:var(--tx);outline:none;cursor:pointer">
+        <option value="date_desc">Date ↓ récent</option>
+        <option value="date_asc">Date ↑ ancien</option>
+        <option value="ref_asc">N° BT ↑</option>
+        <option value="ref_desc">N° BT ↓</option>
+        <option value="sta">Par statut</option>
+        <option value="res">Par résidence</option>
+      </select>
+      <!-- Reset -->
+      <button class="btn btn-g" style="font-size:11px;padding:6px 12px;white-space:nowrap" onclick="resetAllMisFilters()">× Réinitialiser</button>
+    </div>
+    <!-- Compteur résultats -->
+    <div id="allMisCount" style="font-size:12px;color:var(--tx3);font-weight:600;margin-bottom:8px"></div>
+    <!-- Vue liste/tableau -->
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:10px">
+      <button class="vb" id="allVBL" onclick="setAllMisView('l')">☰ Liste</button>
+      <button class="vb on" id="allVBT" onclick="setAllMisView('t')">⊞ Tableau</button>
+    </div>
+    <div id="allMisList"></div>
+  </div>
+</div>
+
+
+<!-- PAGE RÉSIDENCES (cartes) -->
+<div class="page" id="pageResidencesGrid">
+  <div class="home">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:0">
+      <div>
+        <div class="page-eyebrow">Résidences</div>
+        <div class="page-title" style="margin-bottom:0">Toutes les <span>résidences</span></div>
+      </div>
+      <button class="btn-add" onclick="openAddHome()" style="margin-top:8px">＋ Nouvelle intervention</button>
+    </div>
+    <div style="height:16px"></div>
+    <div class="gstats" id="resGridStats"></div>
+    <div style="height:12px"></div>
+    <div class="sec-bar" style="margin-bottom:10px">
+      <div class="sec-label">Résidences</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="position:relative;display:flex;align-items:center">
+          <span style="position:absolute;left:10px;color:var(--tx3);font-size:13px">🔍</span>
+          <input class="srch" id="srchResGrid" placeholder="Rechercher une résidence..." oninput="renderResidencesGrid()" style="width:240px;font-size:13px;padding-left:30px">
+        </div>
+        <button class="btn btn-g" style="font-size:11px;padding:6px 11px" onclick="document.getElementById('srchResGrid').value='';renderResidencesGrid()">× Effacer</button>
+      </div>
+    </div>
+    <div class="bl-grid" id="resGridCards"></div>
+  </div>
 </div>
 
 <!-- HOME -->
@@ -860,13 +976,8 @@ function renderHome(){
   });
   // Palette de couleurs pour les villes
   const VCOLS=['#f97316','#1d4ed8','#16a34a','#dc2626','#7c3aed','#0ea5e9','#db2777','#0f766e','#ca8a04','#9333ea','#0369a1','#b45309'];
-  // Trier : villes avec interventions en premier, puis alphabétique
-  const villeList = Object.values(villeMap).sort((a,b)=>{
-    const na = all.filter(m=>a.resIds.includes(m.res)).length;
-    const nb = all.filter(m=>b.resIds.includes(m.res)).length;
-    if(nb !== na) return nb - na; // Plus d'interventions en premier
-    return a.ville.localeCompare(b.ville);
-  });
+  // Trier : alphabétique
+  const villeList = Object.values(villeMap).sort((a,b)=>a.ville.localeCompare(b.ville,'fr'));
   villeList.forEach((v,i)=>{ if(!v.color) v.color = VCOLS[i % VCOLS.length]; });
 
   document.getElementById('blGrid').innerHTML = villeList.length === 0
@@ -1111,7 +1222,7 @@ async function resetChaudieres(){
   }
 }
 
-function goHome(){D.curBai=null;D.sel=null;D.fc=null;D.fs=null;curRes=null;renderHome();}
+function goHome(){D.curBai=null;D.sel=null;D.fc=null;D.fs=null;curRes=null;setNavActive('navAccueil');renderHome();}
 function openAddHome(){
   // Depuis la home : ouvrir le modal sans bailleur pré-sélectionné
   // L'utilisateur choisit lui-même dans la liste
@@ -1195,8 +1306,205 @@ async function importMissionsFromExcel(){
 }
 
 
+function setNavActive(id){
+  ['navAccueil','navResidences','navInterventions'].forEach(n=>{
+    const el=document.getElementById(n);
+    if(el) el.classList.toggle('active', n===id);
+  });
+}
+
+function goResidences(){
+  setNavActive('navResidences');
+  document.getElementById('hdrBack').style.display='none';
+  showPage('pageResidencesGrid');
+  renderResidencesGrid();
+}
+
+function renderResidencesGrid(){
+  const all = D.mis;
+  const search = (document.getElementById('srchResGrid')?.value||'').toLowerCase().trim();
+  const VCOLS=['#f97316','#1d4ed8','#16a34a','#dc2626','#7c3aed','#0ea5e9','#db2777','#0f766e','#ca8a04','#9333ea','#0369a1','#b45309'];
+
+  // Stats globales
+  const statsEl = document.getElementById('resGridStats');
+  if(statsEl){
+    const total=D.res.length;
+    const avecInter = D.res.filter(r=>all.some(m=>m.res===r.id)).length;
+    statsEl.innerHTML=`<div class="gstat-card" style="border-top:3px solid var(--or)"><div class="gstat-val">${total}</div><div class="gstat-lbl">Résidences</div></div>
+      <div class="gstat-card" style="border-top:3px solid #3b82f6"><div class="gstat-val">${avecInter}</div><div class="gstat-lbl">Avec interventions</div></div>
+      <div class="gstat-card" style="border-top:3px solid #10b981"><div class="gstat-val">${all.length}</div><div class="gstat-lbl">Total interventions</div></div>`;
+  }
+
+  // Construire cartes par résidence
+  let resList = [...D.res];
+  if(search) resList = resList.filter(r=>r.name.toLowerCase().includes(search)||(r.adr||'').toLowerCase().includes(search));
+
+  // Trier : résidences avec interventions en premier, puis alphabétique
+  resList.sort((a,b)=>{
+    const na=all.filter(m=>m.res===a.id).length;
+    const nb=all.filter(m=>m.res===b.id).length;
+    if(nb!==na) return nb-na;
+    return a.name.localeCompare(b.name,'fr');
+  });
+
+  const el = document.getElementById('resGridCards');
+  if(!el) return;
+  if(!resList.length){ el.innerHTML='<div style="color:var(--tx3);font-size:13px;padding:20px">Aucune résidence trouvée.</div>'; return; }
+
+  el.innerHTML = resList.map((r,i)=>{
+    const bm = all.filter(m=>m.res===r.id);
+    const t=bm.length, ec=bm.filter(m=>m.sta==='ec').length;
+    const at=bm.filter(m=>m.sta==='at').length;
+    const cl=bm.filter(m=>m.sta==='te'||m.sta==='fa').length;
+    const b = D.bails.find(b=>b.id===r.bai);
+    const color = b?.color || VCOLS[i % VCOLS.length];
+    const cats=CA.map(c=>{const k=CK[c];const n=bm.filter(m=>m.cat===c).length;if(!n)return'';return`<span class="bl-cat" style="background:${CLC[k].bg};color:${CLC[k].c}">${c} (${n})</span>`;}).join('');
+
+    return `<div class="bl-card" style="--blc:${color}" onclick="openChaudiere('${r.id}')">
+      <div class="bl-card-stripe"></div>
+      <div class="bl-card-head">
+        <div class="bl-open">Voir →</div>
+        <div class="bl-card-name">🏠 ${r.name}</div>
+        <div class="bl-card-res">${r.adr||b?.name||''} · ${t} intervention${t!==1?'s':''}</div>
+      </div>
+      <div class="bl-stats">
+        <div class="bl-s"><div class="bl-s-n" style="color:var(--tx)">${t}</div><div class="bl-s-l">Total</div></div>
+        <div class="bl-s"><div class="bl-s-n" style="color:#d97706">${at}</div><div class="bl-s-l">Attente</div></div>
+        <div class="bl-s"><div class="bl-s-n" style="color:#ea6c0a">${ec}</div><div class="bl-s-l">En cours</div></div>
+        <div class="bl-s"><div class="bl-s-n" style="color:#16a34a">${cl}</div><div class="bl-s-l">Clôturées</div></div>
+      </div>
+      <div class="bl-foot">
+        <div style="margin-bottom:8px">
+          <div style="display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--bg4);margin-bottom:5px">
+            ${t>0?`<div style="width:${Math.round(bm.filter(m=>m.sta==='at').length/t*100)}%;background:#d97706"></div><div style="width:${Math.round(bm.filter(m=>m.sta==='pl').length/t*100)}%;background:#1d4ed8"></div><div style="width:${Math.round(bm.filter(m=>m.sta==='ec').length/t*100)}%;background:#ea6c0a"></div><div style="width:${Math.round(bm.filter(m=>m.sta==='te').length/t*100)}%;background:#16a34a"></div><div style="width:${Math.round(bm.filter(m=>m.sta==='fa').length/t*100)}%;background:#7c3aed"></div>`:''}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${t>0?[{k:'at',l:'Attente',c:'#d97706'},{k:'pl',l:'Planifié',c:'#1d4ed8'},{k:'ec',l:'En cours',c:'#ea6c0a'},{k:'te',l:'Terminé',c:'#16a34a'},{k:'fa',l:'Facturé',c:'#7c3aed'}].filter(s=>bm.filter(m=>m.sta===s.k).length>0).map(s=>{const n=bm.filter(m=>m.sta===s.k).length,p=Math.round(n/t*100);return'<span style="font-size:9px;font-weight:700;color:'+s.c+'">'+s.l+' '+n+' ('+p+'%)</span>';}).join(''):'<span style="font-size:9px;color:var(--tx3)">Aucune intervention</span>'}
+          </div>
+        </div>
+        <div class="bl-cats">${cats||'<span style="font-size:10px;color:var(--tx3)">Aucune intervention</span>'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function goInterventions(){
+  setNavActive('navInterventions');
+  document.getElementById('hdrBack').style.display='none';
+  showPage('pageInterventions');
+  window._allMisView = 't';
+  renderAllMis();
+}
+
+function buildAllMisResSelect(){
+  const sel = document.getElementById('allFRes');
+  if(!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Toutes résidences</option>';
+  const sorted = [...D.res].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  sorted.forEach(r=>{ const o=document.createElement('option'); o.value=r.id; o.textContent=r.name; sel.append(o); });
+  sel.value = cur;
+}
+
+function resetAllMisFilters(){
+  ['allFVille','allFSearch'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
+  ['allFRes','allFCat','allFSta'].forEach(id=>{const e=document.getElementById(id);if(e){if(e.tagName==='SELECT')e.selectedIndex=0;else e.value='';}});
+  const sortEl=document.getElementById('allFSort');if(sortEl)sortEl.selectedIndex=0;
+  const urg=document.getElementById('allFUrg'); if(urg) urg.checked=false;
+  renderAllMis();
+}
+
+function setAllMisView(v){
+  document.getElementById('allVBL').classList.toggle('on', v==='l');
+  document.getElementById('allVBT').classList.toggle('on', v==='t');
+  window._allMisView = v;
+  renderAllMis();
+}
+
+function renderAllMis(){
+  const ville   = (document.getElementById('allFVille')?.value||'').toLowerCase().trim();
+  const resId   = (document.getElementById('allFRes')?.value||'').trim();
+  const cat     = document.getElementById('allFCat')?.value||'';
+  const sta     = document.getElementById('allFSta')?.value||'';
+  const urg     = document.getElementById('allFUrg')?.checked||false;
+  const search  = (document.getElementById('allFSearch')?.value||'').toLowerCase().trim();
+  const sort    = document.getElementById('allFSort')?.value||'date_desc';
+  const view    = window._allMisView || 'l';
+
+  let mis = [...D.mis];
+
+  // Filtres
+  if(ville) mis = mis.filter(m=>{
+    const r = D.res.find(r=>r.id===m.res);
+    const adr = (r?.adr||m.adr||'').toLowerCase();
+    const rname = (r?.name||m.resname||'').toLowerCase();
+    return adr.includes(ville)||rname.includes(ville);
+  });
+  if(resId){
+    const resSearch = resId.toLowerCase().trim();
+    mis = mis.filter(m=>{
+      const rname=(D.res.find(r=>r.id===m.res)?.name||m.resname||'').toLowerCase();
+      return rname.includes(resSearch);
+    });
+  }
+  if(cat)   mis = mis.filter(m=>m.cat===cat);
+  if(sta)   mis = mis.filter(m=>m.sta===sta);
+  if(urg)   mis = mis.filter(m=>m.urg);
+  if(search) mis = mis.filter(m=>{
+    const ref=(m.ref||'').toLowerCase(), loc=(m.loc||'').toLowerCase();
+    const adr=(m.adr||'').toLowerCase(), des=(m.des||'').toLowerCase();
+    const resn=(D.res.find(r=>r.id===m.res)?.name||m.resname||'').toLowerCase();
+    return ref.includes(search)||loc.includes(search)||adr.includes(search)||des.includes(search)||resn.includes(search);
+  });
+
+  // Tri
+  mis.sort((a,b)=>{
+    if(sort==='date_desc') return (b.dat||'') > (a.dat||'') ? 1 : -1;
+    if(sort==='date_asc')  return (a.dat||'') > (b.dat||'') ? 1 : -1;
+    if(sort==='ref_asc')   return (a.ref||'').localeCompare(b.ref||'');
+    if(sort==='ref_desc')  return (b.ref||'').localeCompare(a.ref||'');
+    if(sort==='sta')       return (a.sta||'').localeCompare(b.sta||'');
+    if(sort==='res'){
+      const ra=D.res.find(r=>r.id===a.res)?.name||a.resname||'';
+      const rb=D.res.find(r=>r.id===b.res)?.name||b.resname||'';
+      return ra.localeCompare(rb,'fr');
+    }
+    return 0;
+  });
+
+  // Compteur
+  const cntEl = document.getElementById('allMisCount');
+  if(cntEl) cntEl.textContent = `${mis.length} intervention${mis.length>1?'s':''} affichée${mis.length>1?'s':''}`;
+
+  // Stats rapides
+  const statsEl = document.getElementById('allMisStats');
+  if(statsEl){
+    const total=mis.length, at=mis.filter(m=>m.sta==='at').length, fa=mis.filter(m=>m.sta==='fa').length;
+    const te=mis.filter(m=>m.sta==='te').length, pr=mis.filter(m=>m.sta==='pr').length, ic=mis.filter(m=>m.sta==='ic').length;
+    statsEl.innerHTML=`<div class="gstat-card" style="border-top:3px solid var(--or)"><div class="gstat-val">${total}</div><div class="gstat-lbl">Total</div></div>
+      <div class="gstat-card" style="border-top:3px solid #f59e0b"><div class="gstat-val">${at}</div><div class="gstat-lbl">En attente</div></div>
+      <div class="gstat-card" style="border-top:3px solid #8b5cf6"><div class="gstat-val">${pr}</div><div class="gstat-lbl">Partiel</div></div>
+      <div class="gstat-card" style="border-top:3px solid #ef4444"><div class="gstat-val">${ic}</div><div class="gstat-lbl">En cours</div></div>
+      <div class="gstat-card" style="border-top:3px solid #10b981"><div class="gstat-val">${te}</div><div class="gstat-lbl">Terminé</div></div>
+      <div class="gstat-card" style="border-top:3px solid #3b82f6"><div class="gstat-val">${fa}</div><div class="gstat-lbl">Facturé</div></div>`;
+  }
+
+  // Rendu
+  const el = document.getElementById('allMisList');
+  if(!el) return;
+  if(!mis.length){ el.innerHTML='<div class="nr">Aucune intervention ne correspond aux filtres</div>'; return; }
+
+  if(view==='t'){
+    el.innerHTML=`<div class="tw" style="overflow-x:auto"><table class="dt"><thead><tr>
+      <th>!</th><th>N° BT</th><th>DATE</th><th>RÉSIDENCE</th><th>CATÉGORIE</th><th>DESCRIPTION</th><th>LOCATAIRE</th><th>COMMENTAIRE</th><th>MONTANT HT</th><th>STATUT</th>
+    </tr></thead><tbody>${mis.map(m=>renderMisRow(m)).join('')}</tbody></table></div>`;
+  } else {
+    el.innerHTML=`<div class="ml">${mis.map(m=>renderMisCard(m)).join('')}</div>`;
+  }
+}
+
 function goSettings(){
-  showPage('pageSettings');document.getElementById('hdrBack').style.display='flex';
+  setNavActive('navResidences');showPage('pageSettings');document.getElementById('hdrBack').style.display='flex';
   renderBailleursList();renderChaudieresList();
   const fsel=document.getElementById('chdBailFilter');
   fsel.innerHTML=`<option value="">Tous les bailleurs</option>`+D.bails.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
@@ -1378,6 +1686,47 @@ function renderList(bid){
 }).join('')+'</tbody></table></div>';
 sv(D.view);
 }
+function renderMisCard(m){
+  const k=CK[m.cat]||'tc', s=ST.find(x=>x.k===m.sta)||ST[0];
+  const resname = m.res&&m.resname?m.resname:(D.res.find(r=>r.id===m.res)?.name||m.resname||'');
+  return `<div class="mcard${m.id===D.sel?' on':''}" onclick="selMGlobal('${m.id}')"><div class="mcard-inner">
+    <div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+        <span style="font-size:13px;font-weight:800;color:var(--tx)">${m.ref||'—'}</span>
+        <span style="font-size:12px;font-weight:600;color:var(--tx3)">${fmtDate(m.dat)}</span>
+      </div>
+      <div class="mcard-title">${m.des.length>80?m.des.slice(0,80)+'…':m.des}</div>
+      <div class="mcard-meta">
+        <span class="bdg b-${k}">${m.cat}</span>
+        ${resname?`<span style="font-size:10px;font-weight:600;background:var(--bg4);color:var(--tx2);padding:2px 8px;border-radius:5px">🏠 ${resname}</span>`:''}
+        ${m.loc?`<span style="font-size:11px;color:var(--tx3)">👤 ${m.loc}</span>`:''}
+      </div>
+    </div>
+    <div class="mcard-r">
+      <span class="sb ${SC[m.sta]}">${s.l}</span>
+      ${m.mnt?`<span style="font-size:14px;font-weight:700;color:#16a34a">${m.mnt} €</span>`:''}
+    </div>
+  </div></div>`;
+}
+
+function renderMisRow(m){
+  const k=CK[m.cat]||'tc', s=ST.find(x=>x.k===m.sta)||ST[0];
+  const resname = m.res&&m.resname?m.resname:(D.res.find(r=>r.id===m.res)?.name||m.resname||'');
+  const urgStyle = m.urg ? 'background:#fff5f5;' : '';
+  return `<tr style="${urgStyle}cursor:pointer" onclick="selMGlobal('${m.id}')">
+    <td style="text-align:center">${m.urg?'<span class="urg-badge" style="padding:1px 5px">🔴</span>':''}</td>
+    <td class="mn">${m.ref||'—'}</td>
+    <td>${fmtDate(m.dat)||'—'}</td>
+    <td>${resname?`<span style="color:var(--or);font-weight:700">${resname}</span>`:'—'}</td>
+    <td><span class="bdg b-${k}">${m.cat}</span></td>
+    <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${m.des}">${m.des.slice(0,50)}${m.des.length>50?'…':''}</td>
+    <td>${m.loc||'—'}</td>
+    <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--tx3)">${m.not?m.not.slice(0,40):'—'}</td>
+    <td style="font-weight:700;color:#16a34a">${m.mnt?m.mnt+' €':'—'}</td>
+    <td><span class="sb ${SC[m.sta]}">${s.l}</span></td>
+  </tr>`;
+}
+
 function selM(id){
   D.sel=id;
   openEdit(id);
