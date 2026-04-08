@@ -2794,7 +2794,18 @@ async function ust(id,v){try{await fbUpdateMission(id,{sta:v});}catch(e){alert('
 
 async function snot(id){const not=document.getElementById('ntx').value;try{await fbUpdateMission(id,{not});}catch(e){alert('Erreur : '+e.message);return;}toast('Notes sauvegardées ✓');}
 
-async function del(id){if(!confirm('Supprimer ?'))return;try{await fbDelMission(id);}catch(e){alert('Erreur : '+e.message);return;}D.sel=null;document.getElementById('detPanel').style.display='none';}
+async function del(id){
+  if(!confirm('Supprimer cette intervention ? Cette action est irréversible.'))return;
+  try{await fbDelMission(id);}catch(e){alert('Erreur : '+e.message);return;}
+  // Retirer immédiatement de la liste locale
+  D.mis = D.mis.filter(m=>m.id!==id);
+  D.sel=null;
+  document.getElementById('detPanel').style.display='none';
+  toast('Intervention supprimée ✓');
+  // Rafraîchir la vue courante
+  if(D.curBai) renderBailleur(D.curBai);
+  else renderAllMis();
+}
 
 function toast(msg){const t=document.createElement('div');t.style.cssText='position:fixed;bottom:24px;right:24px;background:var(--or);color:#fff;padding:11px 18px;border-radius:10px;font-size:13px;z-index:9999;font-weight:700;box-shadow:0 4px 20px rgba(249,115,22,.4);font-family:Plus Jakarta Sans,sans-serif';t.textContent=msg;document.body.appendChild(t);setTimeout(()=>t.remove(),2500);}
 
