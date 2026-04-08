@@ -1670,7 +1670,14 @@ firebase.initializeApp({
       </div>
       <div class="fr2">
         <div><label class="fl">Bailleur <span>*</span></label><select class="fs" id="f-bai" onchange="updateResSelect()"><option value="-OpHD_gVAQd4HNNa6BVH">Erilia Sud Calanques</option><option value="-OpIHAvnGJ7GaJ_ECsfk">1001 VIES HABITAT</option><option value="erilia-aubagne">Erilia Aubagne</option><option value="erilia-camargues">Erilia Porte de Camargues</option><option value="erilia-centre-provence">Erilia Centre Provence</option><option value="erilia-marseille-est">Erilia Marseille Est</option></select></div>
-        <div><label class="fl">Résidence</label><select class="fs" id="f-chd" onchange="fillAdrFromChd()"><option value="">— Aucune —</option></select></div>
+        <div style="position:relative"><label class="fl">Résidence</label>
+          <input class="fs" id="f-chd-search" type="text" placeholder="Tapez pour filtrer..." autocomplete="off"
+            oninput="filterResDropdown()" onfocus="showResDropdown()" onblur="setTimeout(hideResDropdown,200)"
+            style="width:100%;padding-right:28px">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--tx3);font-size:12px;margin-top:10px">▼</span>
+          <input type="hidden" id="f-chd">
+          <div id="res-dropdown" style="display:none;position:absolute;z-index:9999;background:#fff;border:1px solid var(--brd);border-radius:8px;max-height:220px;overflow-y:auto;width:100%;box-shadow:0 4px 16px rgba(0,0,0,.12);top:calc(100% + 2px)"></div>
+        </div>
       </div>
       <div class="fr2">
         <div><label class="fl">Catégorie <span>*</span></label>
@@ -1921,9 +1928,104 @@ function fillAdrFromChd(){
     adrField.classList.add('af');
   }
 }
-function updateResSelect(){const bid=document.getElementById('f-bai').value;const sorted=[...getResForBail(bid)].sort((a,b)=>a.name.localeCompare(b.name,'fr'));document.getElementById('f-chd').innerHTML=`<option value="">— Aucune —</option>`+sorted.map(r=>`<option value="${r.id}">${r.name}${r.adr?' – '+r.adr:''}</option>`).join('');fillAdrFromChd();}
+function updateResSelect(){
+  // Charger TOUTES les résidences triées (pas filtré par bailleur)
+  window._resList = [...D.res].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  const searchEl=document.getElementById('f-chd-search');
+  const hiddenEl=document.getElementById('f-chd');
+  if(searchEl && hiddenEl){
+    const curId=hiddenEl.value;
+    const stillValid = window._resList.find(r=>r.id===curId);
+    if(!stillValid){hiddenEl.value='';searchEl.value='';}
+    else{searchEl.value=stillValid.name+(stillValid.adr?' – '+stillValid.adr:'');}
+  }
+  fillAdrFromChd();
+}
+function filterResDropdown(){
+  const q=(document.getElementById('f-chd-search')?.value||'').toLowerCase();
+  document.getElementById('f-chd').value='';
+  showResDropdown(q);
+}
+function showResDropdown(q=''){
+  const dropdown=document.getElementById('res-dropdown');
+  if(!dropdown)return;
+  const list=window._resList||[];
+  const filtered=q
+    ? list.filter(r=>(r.name+' '+(r.adr||'')).toLowerCase().includes(q)).slice(0,30)
+    : list.slice(0,30);
+  if(!filtered.length){dropdown.innerHTML='<div style="padding:10px;font-size:12px;color:var(--tx3)">Aucune résidence trouvée</div>';dropdown.style.display='block';return;}
+  // Trouver le bailleur pour afficher son nom
+  const getBailName=id=>{const b=D.bails.find(x=>x.id===id);return b?b.name:'';}
+  dropdown.innerHTML=(q?'':'<div style="padding:6px 12px;font-size:11px;color:var(--tx3);border-bottom:1px solid var(--brd);cursor:pointer" onmousedown="pickRes(\'\',\'— Aucune —\')">— Aucune —</div>')
+    +filtered.map(r=>{
+      const bail=getBailName(r.bai);
+      return `<div style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--bg4)" onmousedown="pickRes('${r.id}','${(r.name+(r.adr?' – '+r.adr:'')).replace(/'/g,"\\'")}','${r.bai||''}')">
+        <div style="font-weight:600">${r.name}</div>
+        <div style="font-size:11px;color:var(--tx3)">${r.adr||''}${bail?' · '+bail:''}</div>
+      </div>`;
+    }).join('');
+  dropdown.style.display='block';
+}
+function hideResDropdown(){
+  const dropdown=document.getElementById('res-dropdown');
+  if(dropdown)dropdown.style.display='none';
+  const hiddenEl=document.getElementById('f-chd');
+  const searchEl=document.getElementById('f-chd-search');
+  if(hiddenEl&&searchEl&&!hiddenEl.value) searchEl.value='';
+}
+function pickRes(id,label,baiId){
+  document.getElementById('f-chd').value=id;
+  document.getElementById('f-chd-search').value=id?label:'';
+  // Mettre à jour automatiquement le bailleur si on connaît la résidence
+  if(id && baiId){
+    const baiEl=document.getElementById('f-bai');
+    if(baiEl && baiEl.value!==baiId) baiEl.value=baiId;
+  }
+  hideResDropdown();
+  fillAdrFromChd();
+}
 function rebuildBailSelect(id){const el=document.getElementById(id);if(!el)return;el.innerHTML=D.bails.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');}
-function updateResSelect(){const bid=document.getElementById('f-bai').value;const sorted=[...getResForBail(bid)].sort((a,b)=>a.name.localeCompare(b.name,'fr'));document.getElementById('f-chd').innerHTML=`<option value="">— Aucune —</option>`+sorted.map(r=>`<option value="${r.id}">${r.name}${r.adr?' – '+r.adr:''}</option>`).join('');fillAdrFromChd();}
+function updateResSelect(){
+  window._resList = [...D.res].sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  const searchEl=document.getElementById('f-chd-search');
+  const hiddenEl=document.getElementById('f-chd');
+  if(searchEl && hiddenEl){
+    const curId=hiddenEl.value;
+    const stillValid = window._resList.find(r=>r.id===curId);
+    if(!stillValid){hiddenEl.value='';searchEl.value='';}
+    else{searchEl.value=stillValid.name+(stillValid.adr?' – '+stillValid.adr:'');}
+  }
+  fillAdrFromChd();
+}
+function filterResDropdown(){
+  const q=(document.getElementById('f-chd-search')?.value||'').toLowerCase();
+  document.getElementById('f-chd').value=''; // reset hidden until user picks
+  showResDropdown(q);
+}
+function showResDropdown(q=''){
+  const dropdown=document.getElementById('res-dropdown');
+  if(!dropdown)return;
+  const list=window._resList||[];
+  const filtered=q?list.filter(r=>(r.name+' '+(r.adr||'')).toLowerCase().includes(q)):list;
+  if(!filtered.length){dropdown.innerHTML='<div style="padding:10px;font-size:12px;color:var(--tx3)">Aucune résidence</div>';dropdown.style.display='block';return;}
+  dropdown.innerHTML='<div style="padding:6px 12px;font-size:11px;color:var(--tx3);border-bottom:1px solid var(--brd);cursor:pointer" onmousedown="pickRes(\'\',\'— Aucune —\')">— Aucune —</div>'
+    +filtered.map(r=>`<div style="padding:8px 12px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--bg4)" onmousedown="pickRes('${r.id}','${(r.name+(r.adr?' – '+r.adr:'')).replace(/'/g,"\\'")}')"><span style="font-weight:600">${r.name}</span>${r.adr?`<span style="font-size:11px;color:var(--tx3)"> – ${r.adr}</span>`:''}</div>`).join('');
+  dropdown.style.display='block';
+}
+function hideResDropdown(){
+  const dropdown=document.getElementById('res-dropdown');
+  if(dropdown)dropdown.style.display='none';
+  // Si rien sélectionné, vider le texte pour éviter confusion
+  const hiddenEl=document.getElementById('f-chd');
+  const searchEl=document.getElementById('f-chd-search');
+  if(hiddenEl&&searchEl&&!hiddenEl.value) searchEl.value='';
+}
+function pickRes(id,label){
+  document.getElementById('f-chd').value=id;
+  document.getElementById('f-chd-search').value=id?label:'';
+  hideResDropdown();
+  fillAdrFromChd();
+}
 function renderHdrStats(){
   const t=D.mis.length,ec=D.mis.filter(m=>m.sta==='ec').length,at=D.mis.filter(m=>m.sta==='at').length,cl=D.mis.filter(m=>m.sta==='te'||m.sta==='fa').length;
   document.getElementById('hs').innerHTML=`
@@ -2837,9 +2939,13 @@ function checkDupBT(val){
 }
 
 function clrForm(){['f-ref','f-rec','f-des','f-dem','f-loc','f-tel','f-adr','f-not','f-del','f-mnt'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.classList.remove('af');}});document.getElementById('f-cat').value='';document.getElementById('f-sta').value='at';document.getElementById('f-dat').value=today();if(document.getElementById('f-urg'))document.getElementById('f-urg').checked=false;if(document.getElementById('f-dint'))document.getElementById('f-dint').value='';const _fa=document.getElementById('f-adr');if(_fa){_fa.value='';_fa.dataset.fromRes='0';_fa.classList.remove('af');}pendingAttachments=[];renderAttachList();clearPdf();}
-function openAdd(){D.eid=null;document.getElementById('mttl').textContent='Nouvelle intervention';clrForm();rebuildBailSelect('f-bai');document.getElementById('f-bai').value=D.curBai||D.bails[0]?.id||'';updateResSelect();document.getElementById('modal').classList.add('open');}
+function openAdd(){D.eid=null;document.getElementById('mttl').textContent='Nouvelle intervention';clrForm();rebuildBailSelect('f-bai');document.getElementById('f-bai').value=D.curBai||D.bails[0]?.id||'';const _el=document.getElementById('f-chd-search');if(_el)_el.value='';updateResSelect();document.getElementById('modal').classList.add('open');}
 function openEdit(id){const m=D.mis.find(x=>x.id===id);if(!m)return;D.eid=id;document.getElementById('mttl').textContent="Modifier l'intervention";clearPdf();rebuildBailSelect('f-bai');const map={ref:m.ref,rec:m.rec,des:m.des,dem:m.dem,loc:m.loc,tel:m.tel,adr:m.adr,not:m.not,del:m.del,mnt:m.mnt};Object.entries(map).forEach(([k,v])=>{const e=document.getElementById(`f-${k}`);if(e){e.value=v||'';e.classList.remove('af');}});document.getElementById('f-bai').value=m.bai;document.getElementById('f-dat').value=m.dat;document.getElementById('f-cat').value=m.cat;document.getElementById('f-sta').value=m.sta;updateResSelect();
   document.getElementById('f-chd').value=m.res||'';
+  // Remplir aussi le champ de recherche
+  const _resObj=D.res.find(r=>r.id===m.res);
+  const _resSearchEl=document.getElementById('f-chd-search');
+  if(_resSearchEl) _resSearchEl.value=_resObj?(_resObj.name+(_resObj.adr?' – '+_resObj.adr:'')):'';
   if(document.getElementById('f-urg'))document.getElementById('f-urg').checked=!!m.urg;if(document.getElementById('f-dint'))document.getElementById('f-dint').value=m.dint||'';
   // Pré-remplir adresse depuis chaudière si vide
   const _af=document.getElementById('f-adr');
